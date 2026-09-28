@@ -4,6 +4,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: SerrebiTorrent\\nMIME-Version: 1.0\\nContent-Type: text/plain; charset=UTF-8\\nContent-Transfer-Encoding: 8bit\\n"
 
+msgid "\"{name}\" is already in the list. Add {count} new tracker(s) from this link?"
+msgstr ""
+
 msgid "&About SerrebiTorrent"
 msgstr ""
 
@@ -269,6 +272,9 @@ msgid "Auto-update is not available for this build."
 msgstr ""
 
 msgid "Automatically add trackers from URL"
+msgstr ""
+
+msgid "Automatically open the Add Torrent dialog for clipboard magnets"
 msgstr ""
 
 msgid "Automatically start torrents"
@@ -1672,6 +1678,9 @@ msgstr ""
 msgid "Theme"
 msgstr ""
 
+msgid "This torrent is already in the list. The link contains no new trackers."
+msgstr ""
+
 msgid "Those results carry a tracker file rather than a magnet link."
 msgstr ""
 
@@ -1691,6 +1700,9 @@ msgid "Torrent Actions"
 msgstr ""
 
 msgid "Torrent added"
+msgstr ""
+
+msgid "Torrent already added"
 msgstr ""
 
 msgid "Torrent created:\n{path}"
@@ -1739,6 +1751,9 @@ msgid "Tracker URL"
 msgstr ""
 
 msgid "Trackers"
+msgstr ""
+
+msgid "Trackers added to existing torrent"
 msgstr ""
 
 msgid "Translated"

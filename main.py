@@ -1262,6 +1262,10 @@ class PreferencesDialog(wx.Dialog):
         self.auto_start_chk = wx.CheckBox(general_panel, label="Automatically start torrents")
         self.auto_start_chk.SetValue(self.prefs.get('auto_start', True))
         gen_sizer.Add(self.auto_start_chk, 0, wx.ALL, 5)
+
+        self.clipboard_chk = wx.CheckBox(general_panel, label='Automatically open the Add Torrent dialog for clipboard magnets')
+        self.clipboard_chk.SetValue(self.prefs.get("clipboard_auto_add", False))
+        gen_sizer.Add(self.clipboard_chk, 0, wx.ALL, 5)
         
         self.min_tray_chk = wx.CheckBox(general_panel, label="Minimize to System Tray")
         self.min_tray_chk.SetValue(self.prefs.get('min_to_tray', True))
@@ -1484,6 +1488,7 @@ class PreferencesDialog(wx.Dialog):
         return {
             "download_path": self.path_input.GetValue(),
             "auto_start": self.auto_start_chk.GetValue(),
+            "clipboard_auto_add": self.clipboard_chk.GetValue(),
             "min_to_tray": self.min_tray_chk.GetValue(),
             "close_to_tray": self.close_tray_chk.GetValue(),
             "auto_check_updates": self.auto_update_chk.GetValue() if hasattr(self, "auto_update_chk") else self.prefs.get("auto_check_updates", True),
@@ -2753,7 +2758,10 @@ class RSSPanel(wx.Panel):
         dlg.ShowModal()
         dlg.Destroy()
 
-class MainFrame(wx.Frame):
+from magnet_intake import MagnetIntakeMixin
+
+
+class MainFrame(MagnetIntakeMixin, wx.Frame):
     def __init__(self):
         super().__init__(None, title=APP_NAME, size=(1200, 800))
         
@@ -2780,6 +2788,7 @@ class MainFrame(wx.Frame):
         self.pending_hash_starts = set()
         self.pending_cli_arg = None
         self._closing = False
+        self._init_magnet_intake()
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
         self.update_check_in_progress = False
         self.update_install_in_progress = False
@@ -3298,8 +3307,11 @@ class MainFrame(wx.Frame):
             wx.CallAfter(self._on_action_error, f"Failed to add torrent: {e}")
 
     def _add_magnet_background(self, client, generation, url, save_path, status_msg):
+        original_url = url
         try:
             if generation != self.client_generation:
+                return
+            if client and self._check_duplicate_magnet(client, generation, url):
                 return
             trackers = self.fetch_trackers()
             if trackers:
@@ -3308,7 +3320,8 @@ class MainFrame(wx.Frame):
                     url += f"&tr={urllib.parse.quote(t)}"
             if not client:
                 raise RuntimeError("No client connected.")
-            client.add_torrent_url(url, save_path)
+            if not self._submit_magnet_to_client(client, generation, original_url, url, save_path):
+                return
             wx.CallAfter(self._on_action_complete, status_msg)
         except Exception as e:
             wx.CallAfter(self._on_action_error, f"Failed to add magnet: {e}")
@@ -3504,6 +3517,7 @@ class MainFrame(wx.Frame):
         try:
             self.timer.Stop()
             self.rss_timer.Stop()
+            self.clipboard_timer.Stop()
         except Exception:
             pass
         try:
@@ -3983,7 +3997,8 @@ class MainFrame(wx.Frame):
                                           f"Added {item.get('title', 'torrent')}")
 
     def on_add_url(self, event):
-        dlg = wx.TextEntryDialog(self, "Enter Magnet Link or URL:", "Add Torrent")
+        dlg = wx.TextEntryDialog(self, "Enter Magnet Link or URL:", "Add Torrent",
+                                 value=self._clipboard_magnet_value())
         if dlg.ShowModal() == wx.ID_OK:
             url = dlg.GetValue()
             if self.client:
@@ -3991,25 +4006,7 @@ class MainFrame(wx.Frame):
                     default_path = self._get_default_save_path()
 
                     if url.lower().startswith("magnet:"):
-                        adlg = AddTorrentDialog(self, "Magnet Link", None, default_path)
-                        if adlg.ShowModal() == wx.ID_OK:
-                            save_path = adlg.get_selected_path() or None
-                            hash_hint = self._maybe_hash_from_magnet(url)
-                            self._prepare_auto_start()
-                            if hash_hint:
-                                self.pending_hash_starts.add(hash_hint)
-                            generation = self.client_generation
-                            client = self.client
-                            self.statusbar.SetStatusText("Adding magnet link...", 0)
-                            self.thread_pool.submit(
-                                self._add_magnet_background,
-                                client,
-                                generation,
-                                url,
-                                save_path,
-                                "Magnet link added",
-                            )
-                        adlg.Destroy()
+                        self._queue_magnet(url)
                     elif url.startswith(("http://", "https://")):
                         client = self.client
                         generation = self.client_generation
@@ -4212,6 +4209,7 @@ class MainFrame(wx.Frame):
             if not wx.TheClipboard.Open():
                 return False
             wx.TheClipboard.SetData(wx.TextDataObject(text))
+            self._clipboard_last_text = text
             wx.TheClipboard.Close()
             return True
         except Exception:

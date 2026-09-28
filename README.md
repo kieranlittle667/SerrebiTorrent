@@ -69,6 +69,33 @@ SerrebiTorrent ships with no indexers of its own configured — only the public 
 - Local session + app settings: Tools -> Local Session Settings... (`Ctrl+,`) (or tray icon -> Settings -> Local Session Settings...).
 - Remote client settings (enabled only when connected): Tools -> qBittorrent/Transmission/rTorrent Remote Settings... (or tray icon -> Settings -> ...).
 
+## Clipboard magnets and Transmission duplicates
+
+`Ctrl+U` prefills the Add URL dialog with a valid magnet from the clipboard.
+To open the Add Torrent dialog automatically when a magnet is copied, enable
+**Automatically open the Add Torrent dialog for clipboard magnets** in
+Tools -> Local Session Settings -> General. This app setting also applies while
+connected to a remote client and is off by default. The app must be running and
+connected; it can be minimized to the tray.
+
+Each detected magnet opens the usual save-location dialog. Nothing is added
+until you confirm; Cancel dismisses that clipboard content. Multiple magnets
+are handled one at a time, unchanged clipboard text is not prompted repeatedly,
+and magnets copied using the app's own Copy Magnet Link command are ignored.
+Magnet file selection still requires metadata and is unavailable in this dialog.
+
+For Transmission, the default destination is read from the server. Enter a path
+on that server (the Browse button browses this computer). New magnets obey the
+app's Automatically start torrents setting. If the torrent already exists,
+the app asks whether to add the new trackers from that magnet instead. Declining
+leaves it unchanged; accepting adds only missing trackers and preserves its
+location and running/paused state. Links without new trackers show an
+already-added message. Duplicate tracker merging currently applies to desktop
+magnet additions to Transmission, not `.torrent` files or other backends.
+
+Transmission file additions also preserve the checked/unchecked file selection
+from the Add Torrent dialog.
+
 ## Run from source (developers)
 
 1. Install Python 3.14.

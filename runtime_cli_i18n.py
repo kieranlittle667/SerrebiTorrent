@@ -68,9 +68,12 @@ def localized_add_torrent_file_background(
 
 
 def localized_add_magnet_background(self, client, generation, url, save_path, status_msg):
+    original_url = url
     language = _language(self)
     try:
         if generation != self.client_generation:
+            return
+        if client and self._check_duplicate_magnet(client, generation, url):
             return
         trackers = self.fetch_trackers()
         if trackers:
@@ -80,7 +83,8 @@ def localized_add_magnet_background(self, client, generation, url, save_path, st
                 url += f"&tr={urllib.parse.quote(tracker)}"
         if not client:
             raise RuntimeError(tr_cli("No client connected.", language))
-        client.add_torrent_url(url, save_path)
+        if not self._submit_magnet_to_client(client, generation, original_url, url, save_path):
+            return
         wx.CallAfter(self._on_action_complete, status_msg)
     except Exception as exc:  # noqa: BLE001 - client boundary
         wx.CallAfter(

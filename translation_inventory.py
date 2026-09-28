@@ -24,6 +24,7 @@ _TRANSLATION_CALL_NAMES = {
     "tr_rss",
     "tr_create",
     "tr_update",
+    "_magnet_text",
 }
 _EXTRA_MESSAGES = {
     # Translation Center presentation. These are direct wx labels today and are

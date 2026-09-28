@@ -107,6 +107,10 @@ class PreferencesDialog(wx.Dialog):
         self.auto_start_chk.SetValue(self.prefs.get("auto_start", True))
         gen_sizer.Add(self.auto_start_chk, 0, wx.ALL, 5)
 
+        self.clipboard_chk = wx.CheckBox(general_panel, label=self._("Automatically open the Add Torrent dialog for clipboard magnets"))
+        self.clipboard_chk.SetValue(self.prefs.get("clipboard_auto_add", False))
+        gen_sizer.Add(self.clipboard_chk, 0, wx.ALL, 5)
+
         self.min_tray_chk = wx.CheckBox(
             general_panel, label=self._("Minimize to System Tray"))
         self.min_tray_chk.SetValue(self.prefs.get("min_to_tray", True))
@@ -416,6 +420,7 @@ class PreferencesDialog(wx.Dialog):
             "download_path": self.path_input.GetValue(),
             "watch_folder": self.watch_input.GetValue().strip(),
             "auto_start": self.auto_start_chk.GetValue(),
+            "clipboard_auto_add": self.clipboard_chk.GetValue(),
             "min_to_tray": self.min_tray_chk.GetValue(),
             "close_to_tray": self.close_tray_chk.GetValue(),
             "auto_check_updates": self.auto_update_chk.GetValue(),
