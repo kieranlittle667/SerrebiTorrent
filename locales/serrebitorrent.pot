@@ -1228,6 +1228,9 @@ msgstr ""
 msgid "Preferences"
 msgstr ""
 
+msgid "Prefill Add URL from clipboard (magnets and .torrent URLs)"
+msgstr ""
+
 msgid "Preparing restart..."
 msgstr ""
 

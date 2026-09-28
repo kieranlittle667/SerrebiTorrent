@@ -219,9 +219,51 @@ def test_modal_deferral_keeps_queue_busy(frame, monkeypatch):
 
 
 def test_manual_add_prefills_valid_clipboard_magnet(frame):
-    assert frame._clipboard_magnet_value() == MAGNET
+    assert frame._clipboard_torrent_value() == MAGNET
     frame._read_clipboard_text.return_value = 'ordinary text'
-    assert frame._clipboard_magnet_value() == ''
+    assert frame._clipboard_torrent_value() == ''
+
+
+@pytest.mark.parametrize('url', [
+    'https://example.org/file.torrent',
+    'HTTP://example.org/FILE.TORRENT?token=keep%2Bthis&x=1#fragment',
+    'https://example.org/a%20file%2Etorrent?download=1',
+])
+def test_prefill_recognizes_torrent_urls_and_preserves_query(frame, url):
+    frame._read_clipboard_text.return_value = f'Copy this: <{url}>\n'
+    assert frame._clipboard_torrent_value() == url
+
+
+@pytest.mark.parametrize('text', [
+    None, '', 'https://example.org/page', 'https://example.org/file.torrent.exe',
+    'https://example.org/?file=a.torrent', 'file:///tmp/a.torrent',
+    'ftp://example.org/a.torrent', 'https:///a.torrent',
+    'https://example.org:bad/a.torrent', 'https://example.org:0/a.torrent',
+    'magnet:?xt=invalid', 'ordinary text',
+    pytest.param('x' * (1024 * 1024 + 1), id='oversized'),
+])
+def test_prefill_ignores_unrecognized_clipboard_content(text):
+    assert intake.clipboard_torrent_url(text) == ''
+
+
+def test_prefill_uses_first_recognizable_link_in_clipboard_order():
+    url = 'https://example.org/a.torrent'
+    assert intake.clipboard_torrent_url(f'{url}\n{MAGNET}') == url
+    assert intake.clipboard_torrent_url(f'{MAGNET}\n{url}') == MAGNET
+
+
+def test_disabling_prefill_does_not_read_clipboard_or_disable_monitor(frame):
+    frame.config_manager.get_preferences.return_value = {'clipboard_prefill': False, 'clipboard_auto_add': True}
+    assert frame._clipboard_torrent_value() == ''
+    frame._read_clipboard_text.assert_not_called()
+    frame._queue_magnet = Mock()
+    frame._on_clipboard_timer(None)
+    frame._queue_magnet.assert_called_once_with(MAGNET)
+
+
+def test_prefill_clipboard_error_keeps_dialog_empty(frame):
+    frame._read_clipboard_text.side_effect = RuntimeError('clipboard busy')
+    assert frame._clipboard_torrent_value() == ''
 
 
 def test_tracker_merge_failure_reports_error(frame):

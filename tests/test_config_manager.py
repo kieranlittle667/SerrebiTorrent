@@ -44,6 +44,16 @@ def test_normalize_prefs_missing_keys(tmp_path, monkeypatch):
     assert prefs.get("download_path") == "C:\\X"
     assert "web_ui_port" in prefs
     assert prefs.get("language") == "system"
+    assert prefs["clipboard_prefill"] is True
+
+
+def test_clipboard_prefill_preference_persists_independently(tmp_path, monkeypatch):
+    _configure_paths(tmp_path, monkeypatch)
+    cm = config_manager.ConfigManager()
+    cm.set_preferences({"clipboard_prefill": False, "clipboard_auto_add": True})
+    saved = config_manager.ConfigManager().get_preferences()
+    assert saved["clipboard_prefill"] is False
+    assert saved["clipboard_auto_add"] is True
 
 
 def test_listen_interface_default_is_blank(tmp_path, monkeypatch):

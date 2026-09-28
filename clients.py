@@ -980,6 +980,19 @@ class TransmissionClient(BaseClient):
             pass
         return seeds, leechers
 
+    def _completion_bytes(self, torrent):
+        # Lifetime network traffic can include discarded/re-downloaded pieces
+        # and excludes files that were already on disk when the torrent was added.
+        size = max(0, self._int(self._field(torrent, "size_when_done", "sizeWhenDone",
+                                          "total_size", "totalSize", default=0)))
+        left = self._field(torrent, "left_until_done", "leftUntilDone")
+        if left is not None:
+            done = size - self._int(left)
+        else:
+            done = (self._int(self._field(torrent, "have_valid", "haveValid", default=0))
+                    + self._int(self._field(torrent, "have_unchecked", "haveUnchecked", default=0)))
+        return size, max(0, min(size, done))
+
     def get_torrents_full(self):
         try:
             ts = self.c.get_torrents()
@@ -996,8 +1009,9 @@ class TransmissionClient(BaseClient):
                 tracker_url = self._first_tracker_url(t)
                 tracker_domain = _safe_tracker_domain(tracker_url)
                 seeds_total, leechers_total = self._swarm_counts(t)
+                size, done = self._completion_bytes(t)
                 ratio = self._float(self._field(t, "ratio", default=0.0)) * 1000
-                res.append({"hash": self._field(t, "hash_string", "hashString", "hash", default=""), "name": self._field(t, "name", default=""), "size": self._int(self._field(t, "total_size", "totalSize", default=0)), "done": self._int(self._field(t, "downloaded_ever", "downloadedEver", default=0)), "up_total": self._int(self._field(t, "uploaded_ever", "uploadedEver", default=0)), "ratio": ratio, "state": sv, "active": av, "hashing": hv, "message": self._field(t, "error_string", "errorString", default=""), "down_rate": self._int(self._field(t, "rate_download", "rateDownload", default=0)), "up_rate": self._int(self._field(t, "rate_upload", "rateUpload", default=0)), "tracker_domain": tracker_domain, "eta": self._eta_seconds(self._field(t, "eta", default=-1)), "seeds_connected": self._int(self._field(t, "peers_sending_to_us", "peersSendingToUs", default=0)), "seeds_total": seeds_total, "leechers_connected": self._int(self._field(t, "peers_getting_from_us", "peersGettingFromUs", default=0)), "leechers_total": leechers_total, "availability": None, "save_path": self._field(t, "download_dir", "downloadDir", default=None)})
+                res.append({"hash": self._field(t, "hash_string", "hashString", "hash", default=""), "name": self._field(t, "name", default=""), "size": size, "done": done, "up_total": self._int(self._field(t, "uploaded_ever", "uploadedEver", default=0)), "ratio": ratio, "state": sv, "active": av, "hashing": hv, "message": self._field(t, "error_string", "errorString", default=""), "down_rate": self._int(self._field(t, "rate_download", "rateDownload", default=0)), "up_rate": self._int(self._field(t, "rate_upload", "rateUpload", default=0)), "tracker_domain": tracker_domain, "eta": self._eta_seconds(self._field(t, "eta", default=-1)), "seeds_connected": self._int(self._field(t, "peers_sending_to_us", "peersSendingToUs", default=0)), "seeds_total": seeds_total, "leechers_connected": self._int(self._field(t, "peers_getting_from_us", "peersGettingFromUs", default=0)), "leechers_total": leechers_total, "availability": None, "save_path": self._field(t, "download_dir", "downloadDir", default=None)})
             return res
         except Exception as e:
             print(f"Transmission error: {e}")

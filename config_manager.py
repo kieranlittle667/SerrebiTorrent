@@ -77,6 +77,7 @@ DEFAULT_PREFERENCES: Dict[str, Any] = {
     "enable_lsd": True,
     "auto_start": True,
     "clipboard_auto_add": False,
+    "clipboard_prefill": True,
     "watch_folder": "",
     "min_to_tray": True,
     "close_to_tray": True,

@@ -2,7 +2,7 @@
 
 import re
 from collections import deque
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import wx
 
@@ -21,6 +21,24 @@ def clipboard_magnets(text):
 
 def magnet_trackers(url):
     return clean_tracker_urls(parse_qs(urlparse(url).query).get("tr", []))
+
+
+def clipboard_torrent_url(text):
+    """Return the first recognizable torrent link without fetching any URLs."""
+    if not isinstance(text, str) or len(text) > 1024 * 1024:
+        return ""
+    for link in re.findall(r"(?:magnet:\?|https?://)[^\s<>\"']+", text, re.IGNORECASE):
+        if parse_magnet_infohash(link):
+            return link
+        try:
+            parsed = urlparse(link)
+            if (parsed.scheme.lower() in ("http", "https") and parsed.hostname
+                    and parsed.port != 0 and not parsed.username and not parsed.password
+                    and unquote(parsed.path).lower().endswith(".torrent")):
+                return link
+        except ValueError:
+            continue
+    return ""
 
 
 class MagnetIntakeMixin:
@@ -44,10 +62,11 @@ class MagnetIntakeMixin:
         finally:
             wx.TheClipboard.Close()
 
-    def _clipboard_magnet_value(self):
+    def _clipboard_torrent_value(self):
+        if not self.config_manager.get_preferences().get("clipboard_prefill", True):
+            return ""
         try:
-            links = clipboard_magnets(self._read_clipboard_text())
-            return links[0] if links else ""
+            return clipboard_torrent_url(self._read_clipboard_text())
         except Exception:  # noqa: BLE001 - clipboard may be locked by another app
             return ""
 

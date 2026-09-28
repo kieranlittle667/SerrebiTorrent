@@ -1266,6 +1266,10 @@ class PreferencesDialog(wx.Dialog):
         self.clipboard_chk = wx.CheckBox(general_panel, label='Automatically open the Add Torrent dialog for clipboard magnets')
         self.clipboard_chk.SetValue(self.prefs.get("clipboard_auto_add", False))
         gen_sizer.Add(self.clipboard_chk, 0, wx.ALL, 5)
+
+        self.clipboard_prefill_chk = wx.CheckBox(general_panel, label="Prefill Add URL from clipboard (magnets and .torrent URLs)")
+        self.clipboard_prefill_chk.SetValue(self.prefs.get("clipboard_prefill", True))
+        gen_sizer.Add(self.clipboard_prefill_chk, 0, wx.ALL, 5)
         
         self.min_tray_chk = wx.CheckBox(general_panel, label="Minimize to System Tray")
         self.min_tray_chk.SetValue(self.prefs.get('min_to_tray', True))
@@ -1489,6 +1493,7 @@ class PreferencesDialog(wx.Dialog):
             "download_path": self.path_input.GetValue(),
             "auto_start": self.auto_start_chk.GetValue(),
             "clipboard_auto_add": self.clipboard_chk.GetValue(),
+            "clipboard_prefill": self.clipboard_prefill_chk.GetValue(),
             "min_to_tray": self.min_tray_chk.GetValue(),
             "close_to_tray": self.close_tray_chk.GetValue(),
             "auto_check_updates": self.auto_update_chk.GetValue() if hasattr(self, "auto_update_chk") else self.prefs.get("auto_check_updates", True),
@@ -3998,16 +4003,16 @@ class MainFrame(MagnetIntakeMixin, wx.Frame):
 
     def on_add_url(self, event):
         dlg = wx.TextEntryDialog(self, "Enter Magnet Link or URL:", "Add Torrent",
-                                 value=self._clipboard_magnet_value())
+                                 value=self._clipboard_torrent_value())
         if dlg.ShowModal() == wx.ID_OK:
-            url = dlg.GetValue()
+            url = dlg.GetValue().strip()
             if self.client:
                 try:
                     default_path = self._get_default_save_path()
 
                     if url.lower().startswith("magnet:"):
                         self._queue_magnet(url)
-                    elif url.startswith(("http://", "https://")):
+                    elif url.lower().startswith(("http://", "https://")):
                         client = self.client
                         generation = self.client_generation
                         self.statusbar.SetStatusText("Downloading torrent file...", 0)

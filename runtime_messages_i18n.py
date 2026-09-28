@@ -210,12 +210,12 @@ def localized_on_add_url(self, event):
         self,
         tr_runtime_message("Enter Magnet Link or URL:", language),
         tr_runtime_message("Add Torrent", language),
-        value=self._clipboard_magnet_value(),
+        value=self._clipboard_torrent_value(),
     )
     try:
         if dlg.ShowModal() != wx.ID_OK:
             return
-        url = dlg.GetValue()
+        url = dlg.GetValue().strip()
         if not self.client:
             self.statusbar.SetStatusText(
                 tr_runtime_message("Not connected to any client.", language), 0
@@ -225,7 +225,7 @@ def localized_on_add_url(self, event):
             default_path = self._get_default_save_path()
             if url.lower().startswith("magnet:"):
                 self._queue_magnet(url)
-            elif url.startswith(("http://", "https://")):
+            elif url.lower().startswith(("http://", "https://")):
                 client = self.client
                 generation = self.client_generation
                 self.statusbar.SetStatusText(

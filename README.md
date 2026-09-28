@@ -71,7 +71,14 @@ SerrebiTorrent ships with no indexers of its own configured — only the public 
 
 ## Clipboard magnets and Transmission duplicates
 
-`Ctrl+U` prefills the Add URL dialog with a valid magnet from the clipboard.
+`Ctrl+U` prefills the Add URL dialog with the first valid magnet or HTTP(S)
+`.torrent` file URL from the clipboard, including URLs with query strings.
+**Prefill Add URL from clipboard (magnets and .torrent URLs)** in
+Tools -> Local Session Settings -> General controls this behavior and is on by
+default. Turn it off to open Add URL with an empty input. No URL is fetched until
+you confirm. Links without a recognizable `.torrent` filename can still be
+pasted manually.
+
 To open the Add Torrent dialog automatically when a magnet is copied, enable
 **Automatically open the Add Torrent dialog for clipboard magnets** in
 Tools -> Local Session Settings -> General. This app setting also applies while
@@ -94,7 +101,9 @@ already-added message. Duplicate tracker merging currently applies to desktop
 magnet additions to Transmission, not `.torrent` files or other backends.
 
 Transmission file additions also preserve the checked/unchecked file selection
-from the Add Torrent dialog.
+from the Add Torrent dialog. Transmission progress uses the selected download
+size and bytes remaining, so existing data and selective downloads are reported
+correctly rather than being based on lifetime downloaded traffic.
 
 ## Run from source (developers)
 
