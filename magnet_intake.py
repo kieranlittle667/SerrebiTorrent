@@ -154,7 +154,7 @@ class MagnetIntakeMixin:
                 path = dlg.get_selected_path() or None
             finally:
                 dlg.Destroy()
-            # Transmission handles start policy itself; do not schedule a start
+            # Backends handle start policy themselves; do not schedule a start
             # by hash that could accidentally restart a duplicate paused torrent.
             if not getattr(client, "handles_magnet_start", False):
                 self._prepare_auto_start()

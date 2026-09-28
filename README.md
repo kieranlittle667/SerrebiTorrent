@@ -69,7 +69,7 @@ SerrebiTorrent ships with no indexers of its own configured — only the public 
 - Local session + app settings: Tools -> Local Session Settings... (`Ctrl+,`) (or tray icon -> Settings -> Local Session Settings...).
 - Remote client settings (enabled only when connected): Tools -> qBittorrent/Transmission/rTorrent Remote Settings... (or tray icon -> Settings -> ...).
 
-## Clipboard magnets and Transmission duplicates
+## Clipboard magnets and duplicate trackers
 
 `Ctrl+U` prefills the Add URL dialog with the first valid magnet or HTTP(S)
 `.torrent` file URL from the clipboard, including URLs with query strings.
@@ -91,14 +91,17 @@ are handled one at a time, unchanged clipboard text is not prompted repeatedly,
 and magnets copied using the app's own Copy Magnet Link command are ignored.
 Magnet file selection still requires metadata and is unavailable in this dialog.
 
-For Transmission, the default destination is read from the server. Enter a path
-on that server (the Browse button browses this computer). New magnets obey the
-app's Automatically start torrents setting. If the torrent already exists,
+The default destination is read from the connected client. For a remote client,
+enter a path on that server (the Browse button browses this computer). New magnets
+obey the app's Automatically start torrents setting.
+
+For Transmission, qBittorrent, rTorrent and the built-in local session, if the torrent already exists,
 the app asks whether to add the new trackers from that magnet instead. Declining
 leaves it unchanged; accepting adds only missing trackers and preserves its
 location and running/paused state. Links without new trackers show an
 already-added message. Duplicate tracker merging currently applies to desktop
-magnet additions to Transmission, not `.torrent` files or other backends.
+magnet additions, not `.torrent` files or RSS/web additions. Locally merged
+trackers are persisted across application restarts.
 
 Transmission file additions also preserve the checked/unchecked file selection
 from the Add Torrent dialog. Transmission progress uses the selected download

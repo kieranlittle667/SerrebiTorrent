@@ -20,7 +20,7 @@ except ImportError:
 
 from app_paths import get_log_path, get_state_dir
 from config_manager import ConfigManager
-from torrent_parsing import normalize_info_hash
+from torrent_parsing import clean_tracker_urls, normalize_info_hash
 
 # The local session identifies itself to trackers and peers as the current
 # qBittorrent release: peer ID -qBXYZ0- and User-Agent qBittorrent/X.Y.Z.
@@ -817,10 +817,10 @@ class SessionManager:
                 entry.pop('priorities', None)
             raise OSError(f"Failed to persist file priorities for {state_key}.")
 
-    def add_magnet(self, url, save_path):
+    def add_magnet(self, url, save_path, start=None):
         params = lt.parse_magnet_uri(url)
         params.save_path = save_path
-        if not self.auto_start_default:
+        if not (self.auto_start_default if start is None else start):
             flags = _start_paused_flags()
             if flags is not None:
                 params.flags = flags
@@ -846,6 +846,53 @@ class SessionManager:
                      except Exception:
                          pass
                      raise OSError(f"Failed to persist magnet state for {ih}.")
+
+    @staticmethod
+    def _append_missing_trackers(handle, trackers):
+        current = handle.trackers()
+        existing = {str(t['url']) for t in current}
+        tier = max((int(t.get('tier', 0)) for t in current), default=-1) + 1
+        for url in clean_tracker_urls(trackers):
+            if url not in existing:
+                handle.add_tracker({'url': url, 'tier': tier})
+                existing.add(url)
+                tier += 1
+
+    def add_trackers(self, info_hash, trackers):
+        with self.lock:
+            handle = self._find_handle(info_hash)
+            if not handle:
+                raise LookupError("Torrent not found.")
+            original = handle.trackers()
+            existing = {str(t['url']) for t in original}
+            new = [t for t in clean_tracker_urls(trackers) if t not in existing]
+            if not new:
+                return
+            key = self._handle_hash_key(handle)
+            entry = self._db_entry_for_keys(self._handle_hash_keys(handle))
+            created = entry is None
+            if created:
+                entry = {'save_path': str(handle.status().save_path)}
+                self.torrents_db[key] = entry
+            previous = dict(entry)
+            entry['extra_trackers'] = clean_tracker_urls(entry.get('extra_trackers', []) + new)
+            try:
+                self._append_missing_trackers(handle, new)
+                if not self._save_torrents_db():
+                    raise OSError("Failed to persist tracker changes.")
+            except Exception:
+                entry.clear()
+                entry.update(previous)
+                if created:
+                    self.torrents_db.pop(key, None)
+                handle.replace_trackers(original)
+                raise
+
+    def _restore_extra_trackers(self):
+        for handle in self.ses.get_torrents():
+            entry = self._db_entry_for_keys(self._handle_hash_keys(handle))
+            if entry and entry.get('extra_trackers'):
+                self._append_missing_trackers(handle, entry['extra_trackers'])
 
     def load_state(self):
         print("Loading session state...")
@@ -997,6 +1044,8 @@ class SessionManager:
                 print(f"Loaded magnet {db_key} from tracked URI.")
             except Exception as e:
                 print(f"Error loading magnet {db_key}: {e}")
+
+        self._restore_extra_trackers()
 
     def save_state(self):
         print("Saving session state...")

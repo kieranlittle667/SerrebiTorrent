@@ -305,6 +305,23 @@ def _handle_set_auto_managed(handle, enabled):
         pass
 
 class BaseClient(abc.ABC):
+    handles_magnet_start = True
+    _magnet_add_lock = threading.RLock()
+
+    def add_magnet(self, url, save_path, start):
+        with self._magnet_add_lock:
+            duplicate = self.find_magnet_duplicate(url)
+            if duplicate:
+                return duplicate
+            self._add_new_magnet(url, save_path, start)
+        return None
+
+    def _add_new_magnet(self, url, save_path, start):
+        self.add_torrent_url(url, save_path)
+
+    def add_trackers(self, info_hash, trackers):
+        raise NotImplementedError
+
     @abc.abstractmethod
     def test_connection(self):
         pass
@@ -533,6 +550,34 @@ class SCGITransport(xmlrpc.client.Transport):
         return u.close()
 
 class RTorrentClient(BaseClient):
+    def find_magnet_duplicate(self, url):
+        info_hash = parse_magnet_infohash(url)
+        if not info_hash:
+            return None
+        for torrent_hash, name in self.srv.d.multicall2("", "main", "d.hash=", "d.name="):
+            if str(torrent_hash).lower() == info_hash:
+                return torrent_hash, name, [t['url'] for t in self.get_trackers(torrent_hash)]
+        return None
+
+    def _add_new_magnet(self, url, save_path, start):
+        load = self.srv.load.start if start else self.srv.load.normal
+        if save_path:
+            load("", url, f"d.directory.set={save_path}")
+        else:
+            load("", url)
+
+    def add_trackers(self, info_hash, trackers):
+        with self._magnet_add_lock:
+            current = self.srv.t.multicall(info_hash, "", "t.url=", "t.group=")
+            existing = {t[0] for t in current}
+            group = min(32, max((int(t[1]) for t in current), default=-1) + 1)
+            new = [t for t in clean_tracker_urls(trackers) if t not in existing]
+            for tracker in new:
+                self.srv.d.tracker.insert(info_hash, group, tracker)
+                group = min(32, group + 1)
+            if new:
+                self.srv.d.save_full_session(info_hash)
+
     def __init__(self, u, us=None, pw=None):
         if not u.startswith(('http://', 'https://', 'scgi://')):
             u = 'http://' + u
@@ -722,6 +767,30 @@ class RTorrentClient(BaseClient):
 # --- qBit ---
 import qbittorrentapi
 class QBittorrentClient(BaseClient):
+    def find_magnet_duplicate(self, url):
+        info_hash = parse_magnet_infohash(url)
+        if not info_hash:
+            return None
+        # qBittorrent identifies pure v2 torrents by their truncated SHA-256 hash.
+        candidates = list(dict.fromkeys([info_hash, info_hash[:40]]))
+        for torrent in self.c.torrents_info(torrent_hashes=candidates):
+            torrent_hash = str(torrent.hash)
+            if torrent_hash.lower() in candidates:
+                return torrent_hash, torrent.name, [t['url'] for t in self.get_trackers(torrent_hash)]
+        return None
+
+    def _add_new_magnet(self, url, save_path, start):
+        result = self.c.torrents_add(urls=url, save_path=save_path, is_paused=not start)
+        if isinstance(result, str) and result.strip().lower() == "fails.":
+            raise RuntimeError("qBittorrent rejected the URL (Fails.)")
+
+    def add_trackers(self, info_hash, trackers):
+        with self._magnet_add_lock:
+            existing = {t['url'] for t in self.get_trackers(info_hash)}
+            new = [t for t in clean_tracker_urls(trackers) if t not in existing]
+            if new:
+                self.c.torrents_add_trackers(torrent_hash=info_hash, urls=new)
+
     # qBittorrent acknowledges the delete request before its torrent list is
     # always updated, especially when deleting data on a remote server.
     _DELETE_VERIFY_ATTEMPTS = 20
@@ -849,18 +918,8 @@ class QBittorrentClient(BaseClient):
 # --- Trans ---
 from transmission_rpc import Client as TransClient
 class TransmissionClient(BaseClient):
-    handles_magnet_start = True
-    _magnet_add_lock = threading.Lock()
-
-    def add_magnet(self, url, save_path, start):
-        # Serialize additions from this application; a queued copy can become a
-        # duplicate while its options dialog is open.
-        with self._magnet_add_lock:
-            duplicate = self.find_magnet_duplicate(url)
-            if duplicate:
-                return duplicate
-            self.c.add_torrent(url, download_dir=save_path, paused=not start)
-        return None
+    def _add_new_magnet(self, url, save_path, start):
+        self.c.add_torrent(url, download_dir=save_path, paused=not start)
 
     def find_magnet_duplicate(self, url):
         info_hash = parse_magnet_infohash(url)
@@ -1192,6 +1251,22 @@ except ImportError:
     lt = None
 from session_manager import SessionManager
 class LocalClient(BaseClient):
+    def find_magnet_duplicate(self, url):
+        info_hash = parse_magnet_infohash(url)
+        if not info_hash:
+            return None
+        handle = self._gh(info_hash)
+        if handle:
+            return (info_hash, str(handle.status().name or info_hash),
+                    [str(t['url']) for t in handle.trackers()])
+        return None
+
+    def _add_new_magnet(self, url, save_path, start):
+        self.m.add_magnet(url, save_path or self._edp(), start=start)
+
+    def add_trackers(self, info_hash, trackers):
+        self.m.add_trackers(info_hash, trackers)
+
     def __init__(self, dp, us=None, pw=None):
         if not lt:
             raise RuntimeError("libtorrent not found.")
